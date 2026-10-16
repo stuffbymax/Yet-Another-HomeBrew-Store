@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}{{ 'Edit ' + item.name if item else 'Upload an app' }} · YAHBS{% endblock %}
+{% block content %}
+<section class="narrow wide">
+  <h1>{{ 'Edit ' + item.name if item else 'Upload an app' }}</h1>
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.name, maxlength=64) }}
+    {{ field(form.platform) }}
+    {{ field(form.version, maxlength=20) }}
+    {{ field(form.title_id, maxlength=24) }}
+    {{ field(form.short_desc, maxlength=140) }}
+    {{ field(form.description, rows=8, maxlength=4000) }}
+    {{ field(form.icon, accept="image/png,image/jpeg") }}
+    {{ field(form.package, accept=".pkg,.zip,.elf") }}
+    {% if item %}<p class="muted">Leave the package empty to keep the current file. A new package goes back to review.</p>{% endif %}
+    {% if not item %}
+    <div class="field check">{{ form.accept() }} <label for="accept">{{ form.accept.label.text }}</label>
+      {% for e in form.accept.errors %}<p class="err">{{ e }}</p>{% endfor %}</div>
+    {% endif %}
+    <button class="btn" type="submit">{{ 'Save changes' if item else 'Upload' }}</button>
+    <a href="{{ url_for('dashboard') }}">Cancel</a>
+  </form>
+</section>
+{% endblock %}

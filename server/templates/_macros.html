@@ -1,0 +1,21 @@
+{% macro field(f) %}
+<div class="field">
+  {{ f.label }}
+  {{ f(**kwargs) }}
+  {% for e in f.errors %}<p class="err">{{ e }}</p>{% endfor %}
+</div>
+{% endmacro %}
+
+{% macro badge(p) %}<span class="plat plat-{{ p }}">{{ PLATFORM_LABEL[p] }}</span>{% endmacro %}
+
+{% macro tile(a) %}
+<a class="tile" href="{{ url_for('detail', app_id=a.id) }}">
+  {% if a.icon_file %}<img src="{{ url_for('icon', app_id=a.id) }}" alt="" width="72" height="72" loading="lazy">
+  {% else %}<span class="noicon" aria-hidden="true">{{ a.name[:1]|upper }}</span>{% endif %}
+  <span class="tile-body">
+    <strong>{{ a.name }}</strong>
+    <span class="muted">{{ a.short_desc or 'No summary' }}</span>
+    <span class="meta">{{ badge(a.platform) }} v{{ a.version }} · {{ a.owner.username }}</span>
+  </span>
+</a>
+{% endmacro %}

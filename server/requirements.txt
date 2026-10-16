@@ -1,0 +1,9 @@
+Flask>=3.0,<4
+Flask-SQLAlchemy>=3.1
+Flask-Login>=0.6.3
+Flask-WTF>=1.2
+Flask-Limiter>=3.5
+Flask-Talisman>=1.1
+email-validator>=2.1
+Pillow>=10.3
+gunicorn>=22.0

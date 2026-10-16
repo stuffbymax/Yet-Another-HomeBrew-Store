@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block title %}Review · YAHBS{% endblock %}
+{% block content %}
+<h1>Waiting for review</h1>
+{% for a in pending %}
+<article class="review">
+  <div><strong>{{ a.name }}</strong> v{{ a.version }} {{ badge(a.platform) }} by {{ a.owner.username }}
+    <p class="muted">{{ a.short_desc }}</p>
+    <p class="muted">{{ a.package_size|filesize }} · <code>{{ a.package_sha256 }}</code></p>
+    <a href="{{ url_for('download', app_id=a.id) }}">Download to inspect</a></div>
+  <div class="actions">
+    {% for act, label in (('approve','Approve'),('reject','Reject')) %}
+    <form method="post" action="{{ url_for('moderate', app_id=a.id, action=act) }}" class="inline">
+      {{ form.hidden_tag() }}<button class="btn small {{ 'ghost' if act == 'reject' }}" type="submit">{{ label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</article>
+{% else %}<p class="empty">Queue is empty.</p>{% endfor %}
+{% endblock %}

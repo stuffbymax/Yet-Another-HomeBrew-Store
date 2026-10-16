@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block title %}{{ item.name }} · YAHBS{% endblock %}
+{% block content %}
+<article class="detail">
+  {% if item.icon_file %}<img src="{{ url_for('icon', app_id=item.id) }}" alt="" width="128" height="128">{% endif %}
+  <div>
+    <h1>{{ item.name }}</h1>
+    <p class="meta">{{ badge(item.platform) }} v{{ item.version }} · by {{ item.owner.username }}
+      {% if not item.is_public() %}· <strong>{{ item.status }}, only you can see this</strong>{% endif %}</p>
+    <p>{{ item.short_desc }}</p>
+    <a class="btn" href="{{ url_for('download', app_id=item.id) }}">Download {{ item.package_size|filesize }}</a>
+  </div>
+</article>
+{% if item.description %}<section class="prose"><h2>About</h2><p class="pre">{{ item.description }}</p></section>{% endif %}
+<section>
+  <h2>Package details</h2>
+  <dl class="facts">
+    <dt>SHA-256</dt><dd><code>{{ item.package_sha256 }}</code></dd>
+    {% if item.title_id %}<dt>Title ID</dt><dd>{{ item.title_id }}</dd>{% endif %}
+    <dt>Downloads</dt><dd>{{ item.downloads }}</dd>
+    <dt>Updated</dt><dd>{{ item.updated_at.strftime('%Y-%m-%d') }}</dd>
+  </dl>
+  <p class="muted">Compare the SHA-256 with your download before installing. Homebrew runs with high privileges on your console, so only install apps from creators you trust.</p>
+</section>
+{% endblock %}

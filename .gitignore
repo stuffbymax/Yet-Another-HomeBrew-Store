@@ -1,8 +1,0 @@
-instance/
-build/
-toolchains/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-uploads/

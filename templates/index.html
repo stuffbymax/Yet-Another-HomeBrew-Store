@@ -1,5 +1,0 @@
-{% extends "base.html" %}{% block content %}
-<h1>PS3 · PS4 · PS5 homebrew</h1><p>Community-published packages with checksums for verification.</p>
-<p><a href="{{ url_for('index') }}">All</a>{% for platform in platforms %} · <a href="{{ url_for('index', platform=platform) }}">{{ platform|upper }}</a>{% endfor %}</p>
-<section class="grid">{% for app in apps %}<article class="card"><h2>{{ app.name }}</h2><p class="tag">{{ app.platform|upper }} · v{{ app.version }}</p><p>{{ app.description }}</p><small>by {{ app.creator.username }} · {{ app.download_count }} downloads</small><p><a href="{{ url_for('download_app', app_id=app.id) }}">Download</a></p>{% if current_user.is_authenticated and current_user.id == app.creator_id %}<a href="{{ url_for('edit_app', app_id=app.id) }}">Edit</a> <form style="display:inline;background:none;padding:0" method="post" action="{{ url_for('delete_app', app_id=app.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>Delete</button></form>{% endif %}</article>{% else %}<p>No packages published yet.</p>{% endfor %}</section>
-{% endblock %}

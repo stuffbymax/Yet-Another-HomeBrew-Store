@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Yet Another HomeBrew Store{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="{{ url_for('index') }}">YAHBS<span class="muted"> homebrew for PS3 · PS4 · PS5</span></a>
+  <nav>
+    <a href="{{ url_for('rules') }}">Rules</a>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('dashboard') }}">My apps</a>
+      {% if current_user.is_admin %}<a href="{{ url_for('admin') }}">Review</a>{% endif %}
+      <form method="post" action="{{ url_for('logout') }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="link" type="submit">Log out ({{ current_user.username }})</button>
+      </form>
+    {% else %}
+      <a href="{{ url_for('login') }}">Log in</a>
+      <a class="btn small" href="{{ url_for('register') }}">Become a creator</a>
+    {% endif %}
+  </nav>
+</header>
+<main>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<p class="flash {{ cat }}" role="status">{{ m }}</p>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+<footer>Homebrew only. Not affiliated with Sony. Report problems to the moderators.</footer>
+</body>
+</html>

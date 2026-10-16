@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import tile %}
+{% block content %}
+<form class="search" method="get" action="{{ url_for('index') }}">
+  <div class="tabs" role="group" aria-label="Platform">
+    <a class="{{ 'on' if not platform }}" href="{{ url_for('index', q=q or None) }}">All</a>
+    {% for p in ('ps3','ps4','ps5') %}
+      <a class="tab-{{ p }} {{ 'on' if platform == p }}" href="{{ url_for('index', platform=p, q=q or None) }}">{{ PLATFORM_LABEL[p] }}</a>
+    {% endfor %}
+  </div>
+  {% if platform %}<input type="hidden" name="platform" value="{{ platform }}">{% endif %}
+  <input type="search" name="q" value="{{ q }}" maxlength="64" placeholder="Search apps" aria-label="Search apps">
+  <button class="btn" type="submit">Search</button>
+</form>
+
+{% if pager.items %}
+<div class="grid">{% for a in pager.items %}{{ tile(a) }}{% endfor %}</div>
+<div class="pager">
+  {% if pager.has_prev %}<a href="{{ url_for('index', page=pager.prev_num, platform=platform or None, q=q or None) }}">Newer</a>{% endif %}
+  {% if pager.has_next %}<a href="{{ url_for('index', page=pager.next_num, platform=platform or None, q=q or None) }}">Older</a>{% endif %}
+</div>
+{% else %}
+<p class="empty">Nothing here yet{% if q %} for “{{ q }}”{% endif %}. Creators can <a href="{{ url_for('new_app') }}">upload the first app</a>.</p>
+{% endif %}
+{% endblock %}

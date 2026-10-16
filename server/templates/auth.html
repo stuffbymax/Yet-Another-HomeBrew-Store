@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}{{ title }} · YAHBS{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>{{ title }}</h1>
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.username, autocomplete="username", maxlength=32) }}
+    {% if form.email is defined %}{{ field(form.email, autocomplete="email") }}{% endif %}
+    {{ field(form.password, autocomplete="new-password" if form.confirm is defined else "current-password") }}
+    {% if form.confirm is defined %}
+      {{ field(form.confirm, autocomplete="new-password") }}
+      <div class="field check">{{ form.accept() }} <label for="accept">I accept the <a href="{{ url_for('rules') }}">rules</a></label>
+        {% for e in form.accept.errors %}<p class="err">{{ e }}</p>{% endfor %}</div>
+    {% endif %}
+    <button class="btn" type="submit">{{ title }}</button>
+  </form>
+  {% if form.confirm is defined %}<p class="muted">Already a creator? <a href="{{ url_for('login') }}">Log in</a></p>
+  {% else %}<p class="muted">New here? <a href="{{ url_for('register') }}">Create an account</a></p>{% endif %}
+</section>
+{% endblock %}
