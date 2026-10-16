@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block content %}<h1>{{ "Edit app" if app else "Publish an app" }}</h1><form method="post" enctype="multipart/form-data">
+<label>Name<input name="name" required maxlength="120" value="{{ app.name if app else '' }}"></label><label>Slug<input name="slug" required maxlength="140" pattern="[A-Za-z0-9-]+" value="{{ app.slug if app else '' }}"></label>
+<label>Description<textarea name="description" required maxlength="10000">{{ app.description if app else '' }}</textarea></label><label>Platform<select name="platform">{% for p in platforms %}<option value="{{ p }}" {% if app and app.platform == p %}selected{% endif %}>{{ p|upper }}</option>{% endfor %}</select></label>
+<label>Version<input name="version" required maxlength="40" value="{{ app.version if app else '' }}"></label><label>Package (.zip, .pkg, .7z)<input type="file" name="package" {% if not app %}required{% endif %}></label>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Publish</button></form>{% endblock %}

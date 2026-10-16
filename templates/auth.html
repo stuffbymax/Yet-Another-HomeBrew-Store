@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block content %}<h1>{{ title }}</h1><form method="post">
+<label>Email<input type="email" name="email" required maxlength="255"></label>
+{% if title == "Register" %}<label>Username<input name="username" required minlength="3" maxlength="80"></label>{% endif %}
+<label>Password<input type="password" name="password" required minlength="12"></label><button type="submit">{{ title }}</button></form>{% endblock %}
