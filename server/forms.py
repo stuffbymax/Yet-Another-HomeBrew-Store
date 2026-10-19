@@ -48,3 +48,24 @@ class AppForm(FlaskForm):
 
 class ConfirmForm(FlaskForm):
     """CSRF-only form for POST buttons (delete, approve, reject)."""
+
+
+class ForgotForm(FlaskForm):
+    email = StringField("Email", validators=[DataRequired(), Email(), Length(max=255)])
+
+
+class ResetForm(FlaskForm):
+    password = PasswordField("New password", validators=[DataRequired(), Length(min=12, max=128)])
+    confirm = PasswordField("Repeat password", validators=[DataRequired(), EqualTo("password", message="Passwords do not match.")])
+
+
+class TotpForm(FlaskForm):
+    code = StringField("6-digit code", validators=[DataRequired(), Regexp(r"^\d{6}$", message="Enter the 6 digits.")])
+
+
+class PasswordForm(FlaskForm):
+    password = PasswordField("Current password", validators=[DataRequired(), Length(max=128)])
+
+
+class ReportForm(FlaskForm):
+    reason = TextAreaField("What is wrong with this app?", validators=[DataRequired(), Length(10, 500)])

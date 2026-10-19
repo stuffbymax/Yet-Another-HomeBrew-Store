@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}{{ title }} · YAHBS{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>{{ title }}</h1>
+  {% if note %}<p class="muted">{{ note }}</p>{% endif %}
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {% for f in form if f.widget.input_type != 'hidden' %}{{ field(f, autocomplete="one-time-code" if f.name == 'code' else None) }}{% endfor %}
+    <button class="btn" type="submit">{{ submit }}</button>
+  </form>
+</section>
+{% endblock %}

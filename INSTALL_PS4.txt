@@ -1,0 +1,20 @@
+YAHBS for PS4 - install notes (alpha, never run on a console before you)
+
+SERVER (once)
+  1. Put the line from SERVER_SIGNING_KEY.txt in the server's environment (.env). Keep it SECRET.
+     It was generated in a chat sandbox: for a public launch, generate your own
+     (flask --app app gen-signing-key), paste the new public line into client/common/pubkey.h and
+     rebuild with: toolchain/build_client.sh ps4 https://your-store
+  2. The server must use HTTPS with a Let's Encrypt certificate (the app trusts those roots only).
+
+CONSOLE
+  1. Make a text file named config.txt containing one line, your store address:
+         https://your-store.example.com
+     and copy it to /data/yahbs/config.txt on the PS4 (create the folder if needed).
+  2. Install IV0000-YAHB00001_00-YAHBSALPHA000001.pkg with whatever package installer your
+     homebrew-enabled PS4 uses. Launch YAHBS.
+  3. Controls: D-pad move, X select/download, O back, Square refresh.
+  Downloads go to /data/yahbs/ ; a .pkg is only staged there (install it yourself).
+
+If something fails, the app shows the error on screen (e.g. "bad signature" = server key doesn't
+match the app; certificate error = server is not on a Let's Encrypt cert or the console clock is wrong).

@@ -2,12 +2,14 @@
 import logging
 import re
 import secrets
+import time
 from datetime import timedelta
 from urllib.parse import urljoin, urlparse
 
 import click
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template,
-                   request, send_from_directory, url_for)
+                   request, send_from_directory, session, url_for)
+from flask_migrate import Migrate
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_talisman import Talisman
 from sqlalchemy import or_, update
@@ -15,8 +17,11 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import INSTANCE_DIR, Config
 from extensions import csrf, db, limiter, login_manager
-from forms import AppForm, ConfirmForm, LoginForm, RegisterForm
-from models import HomebrewApp, User, utcnow
+from account import (admin_gate, audit, register_account_routes, require_verified, send_verification)
+from forms import AppForm, ConfirmForm, LoginForm, RegisterForm, ReportForm
+from models import HomebrewApp, Report, User, utcnow
+import signing
+from scan import scan_file
 from security import UploadError, delete_stored, save_icon, save_package
 
 log = logging.getLogger("yahbs")
@@ -42,6 +47,7 @@ def create_app(overrides=None):
 
     app.config["RATELIMIT_ENABLED"] = app.config.get("RATELIMIT_ENABLED", True)
     db.init_app(app)
+    Migrate(app, db)
     csrf.init_app(app)
     limiter.init_app(app)
     login_manager.init_app(app)
@@ -92,9 +98,11 @@ def create_app(overrides=None):
 
     app.jinja_env.globals.update(PLATFORM_LABEL=PLATFORM_LABEL)
     register_routes(app)
+    register_account_routes(app)
     register_cli(app)
-    with app.app_context():
-        db.create_all()
+    if app.config["ENV_NAME"] == "development" or app.config.get("TESTING"):
+        with app.app_context():
+            db.create_all()      # production uses migrations: flask --app app db upgrade
     return app
 
 
@@ -150,7 +158,7 @@ def register_routes(app):
     @app.get("/app/<int:app_id>")
     def detail(app_id):
         item = visible_or_404(get_app_or_404(app_id))
-        return render_template("detail.html", item=item, form=ConfirmForm())
+        return render_template("detail.html", item=item, form=ConfirmForm(), report_form=ReportForm())
 
     @app.get("/app/<int:app_id>/icon")
     def icon(app_id):
@@ -199,9 +207,14 @@ def register_routes(app):
     def api_catalog_tsv():
         """Tab-separated: id name version platform size sha256 - trivial to parse in C."""
         apps = public_query(request.args.get("platform")).order_by(HomebrewApp.name).limit(500).all()
-        lines = [f"{a.id}\t{a.name}\t{a.version}\t{a.platform}\t{a.package_size}\t{a.package_sha256}"
+        lines = [f"{a.id}\t{a.name}\t{a.version}\t{a.platform}\t{a.package_size}\t{a.package_sha256}\t{a.package_file.rsplit('.', 1)[-1]}"
                  for a in apps]  # names cannot contain control chars (form validator)
-        return Response("\n".join(lines) + "\n", mimetype="text/plain")
+        plat = request.args.get("platform", "")
+        if plat not in PLATFORM_LABEL:
+            abort(400)
+        if not cfg["SIGNING_KEY_HEX"]:
+            abort(503)  # never serve an unsigned catalog
+        return Response(signing.sign_catalog(cfg["SIGNING_KEY_HEX"], plat, lines), mimetype="text/plain")
 
     # ---------- auth ----------
     @app.route("/register", methods=["GET", "POST"])
@@ -219,7 +232,8 @@ def register_routes(app):
                 user.set_password(form.password.data)
                 db.session.add(user)
                 db.session.commit()
-                flash("Account created. You can log in now.", "ok")
+                send_verification(user)
+                flash("Account created. Check your email for a verification link, then log in.", "ok")
                 return redirect(url_for("login"))
         return render_template("auth.html", form=form, title="Create account")
 
@@ -239,17 +253,24 @@ def register_routes(app):
                 User.dummy_check(form.password.data)
                 flash(generic, "error")
             elif user.check_password(form.password.data):
+                nxt = request.args.get("next")
+                nxt = nxt if is_safe_next(nxt) else None
+                if user.totp_enabled:
+                    session.clear()
+                    session["pre2fa"] = {"id": user.id, "t": time.time(), "next": nxt}
+                    return redirect(url_for("login_2fa"))
                 user.failed_logins, user.locked_until = 0, None
                 db.session.commit()
+                session.clear()  # fresh session on privilege change (fixation defence)
                 login_user(user)
                 log.info("login ok user=%s ip=%s", user.username, request.remote_addr)
-                nxt = request.args.get("next")
-                return redirect(nxt if is_safe_next(nxt) else url_for("dashboard"))
+                return redirect(nxt or url_for("dashboard"))
             else:
                 user.failed_logins += 1
                 if user.failed_logins >= cfg["MAX_FAILED_LOGINS"]:
                     user.locked_until = utcnow() + timedelta(minutes=cfg["LOCKOUT_MINUTES"])
                     user.failed_logins = 0
+                    audit("account_locked", user.username, actor=user.username)
                 db.session.commit()
                 log.warning("login failed user=%s ip=%s", user.username, request.remote_addr)
                 flash(generic, "error")
@@ -280,15 +301,18 @@ def register_routes(app):
             form.accept.errors = ["You must confirm this."]
             return False
         new_pkg = new_ico = None
+        stage = form.package
         try:
             if has_pkg:
                 new_pkg = save_package(pkg, form.platform.data, upload_dir)
+                scan_file(upload_dir / new_pkg[0], cfg["CLAMD_ADDR"])
             if has_ico:
+                stage = form.icon
                 new_ico = save_icon(ico, upload_dir)
         except UploadError as e:
             if new_pkg:
                 delete_stored(upload_dir, new_pkg[0])
-            (form.package if not new_pkg else form.icon).errors = [str(e)]
+            stage.errors = [str(e)]
             return False
         if not creating and not has_pkg and form.platform.data != item.platform:
             form.platform.errors = ["Upload a new package to change platform."]
@@ -314,6 +338,7 @@ def register_routes(app):
     @login_required
     @limiter.limit("10 per hour", methods=["POST"])
     def new_app():
+        if (r := require_verified()): return r
         form = AppForm()
         if form.validate_on_submit():
             item = HomebrewApp(owner_id=current_user.id, package_file="", package_sha256="",
@@ -322,6 +347,7 @@ def register_routes(app):
             if _apply(form, item, creating=True):
                 db.session.add(item)
                 db.session.commit()
+                audit("app_uploaded", f"app={item.id} sha256={item.package_sha256[:16]}")
                 flash("Uploaded. It will appear in the store once a moderator approves it.", "ok")
                 return redirect(url_for("dashboard"))
         return render_template("app_form.html", form=form, item=None)
@@ -333,6 +359,7 @@ def register_routes(app):
         item = get_app_or_404(app_id)
         if not item.can_edit(current_user):
             abort(404)
+        if (r := require_verified()): return r
         form = AppForm(obj=item) if request.method == "GET" else AppForm()
         if form.validate_on_submit():
             if _apply(form, item, creating=False):
@@ -350,6 +377,8 @@ def register_routes(app):
             abort(404)
         delete_stored(cfg["UPLOAD_DIR"], item.package_file)
         delete_stored(cfg["UPLOAD_DIR"], item.icon_file)
+        if item.owner_id != current_user.id:
+            audit("app_deleted_by_admin", f"app={item.id} {item.name}")
         db.session.delete(item)
         db.session.commit()
         flash("Deleted.", "ok")
@@ -359,21 +388,20 @@ def register_routes(app):
     @app.get("/admin")
     @login_required
     def admin():
-        if not current_user.is_admin:
-            abort(404)
+        if (g := admin_gate()): return g
         pending = HomebrewApp.query.filter_by(status="pending").order_by(HomebrewApp.created_at).all()
         return render_template("admin.html", pending=pending, form=ConfirmForm())
 
     @app.post("/admin/<int:app_id>/<action>")
     @login_required
     def moderate(app_id, action):
-        if not current_user.is_admin or action not in ("approve", "reject") \
-                or not ConfirmForm().validate_on_submit():
+        if (g := admin_gate()): return g
+        if action not in ("approve", "reject") or not ConfirmForm().validate_on_submit():
             abort(404)
         item = get_app_or_404(app_id)
         item.status = "approved" if action == "approve" else "rejected"
         db.session.commit()
-        log.info("moderation %s app=%s by=%s", action, item.id, current_user.username)
+        audit(f"app_{action}", f"app={item.id} {item.name}")
         flash(f"{item.name}: {item.status}.", "ok")
         return redirect(url_for("admin"))
 
@@ -389,6 +417,8 @@ def register_routes(app):
 
 
 def register_cli(app):
+    app.cli.add_command(gen_signing_key)
+
     @app.cli.command("create-admin")
     @click.argument("username")
     @click.argument("email")
@@ -397,11 +427,21 @@ def register_cli(app):
         pw = click.prompt("Password (12+ chars)", hide_input=True, confirmation_prompt=True)
         if len(pw) < 12:
             raise click.ClickException("Password too short.")
-        u = User(username=username, email=email.lower(), role="admin")
+        u = User(username=username, email=email.lower(), role="admin", email_verified=True)
         u.set_password(pw)
         db.session.add(u)
         db.session.commit()
         click.echo("Admin created.")
+
+
+@click.command("gen-signing-key")
+def gen_signing_key():
+    """Generate the catalog signing key. Keep the seed secret; embed the public key in clients."""
+    import signing
+    seed, pub = signing.generate()
+    click.echo(f"SIGNING_KEY_HEX={seed}\n# put the line above in your environment (secret!)")
+    click.echo("// client/common/pubkey.h")
+    click.echo("#define YAHBS_PUBKEY { " + ", ".join(f"0x{b:02x}" for b in pub) + " }")
 
 
 if __name__ == "__main__":

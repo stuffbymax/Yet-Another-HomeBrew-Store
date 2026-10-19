@@ -17,6 +17,6 @@
     <button class="btn" type="submit">{{ title }}</button>
   </form>
   {% if form.confirm is defined %}<p class="muted">Already a creator? <a href="{{ url_for('login') }}">Log in</a></p>
-  {% else %}<p class="muted">New here? <a href="{{ url_for('register') }}">Create an account</a></p>{% endif %}
+  {% else %}<p class="muted"><a href="{{ url_for('forgot') }}">Forgot password?</a></p><p class="muted">New here? <a href="{{ url_for('register') }}">Create an account</a></p>{% endif %}
 </section>
 {% endblock %}

@@ -10,17 +10,22 @@ client/     common/ portable C core (catalog, download, SHA-256)  host/ PC test 
 toolchain/  setup_ps3.sh  setup_ps4.sh  setup_ps5.sh  setup_all.sh
 ```
 
-## Run the server (dev)
+## Quick start (3 commands)
 ```bash
+./make-key.sh                       # makes the signing key + puts both halves where they belong (see below)
 cd server && python3 -m venv venv && . venv/bin/activate && pip install -r requirements.txt
-export YAHBS_ENV=development
-flask --app app create-admin yourname you@example.com   # moderator account
-flask --app app run
+flask --app app db upgrade && flask --app app create-admin yourname you@example.com && gunicorn 'app:create_app()'
 ```
-Production: set `SECRET_KEY`, `FORCE_HTTPS=1`, `PROXY_HOPS=1`, use PostgreSQL and Redis
-(`RATELIMIT_STORAGE_URI`), run `gunicorn 'app:create_app()'` behind nginx with a real TLS certificate
-(Let's Encrypt), and cap uploads in nginx too (`client_max_body_size`). Back up `instance/uploads` + DB.
-`cd server && python -m pytest tests` runs the security tests.
+**What `make-key.sh` does:** creates the signing key pair, writes the *secret* to `server/.env`
+(the server reads that file by itself; it also fills in `SECRET_KEY`) and the *public* half to
+`client/common/pubkey.h` (built into the console app). Run it once. It refuses to run again so you can't
+break installed apps by accident; `./make-key.sh --force` replaces the key, after which you must rebuild the
+console app. Never share or commit `server/.env`.
+
+For local development use `export YAHBS_ENV=development` and `flask --app app run` instead of gunicorn.
+Production: put it behind nginx with a Let's Encrypt certificate, set `FORCE_HTTPS=1` and `PROXY_HOPS=1`,
+prefer PostgreSQL and Redis (`RATELIMIT_STORAGE_URI`), cap uploads in nginx (`client_max_body_size`), and
+back up `instance/uploads` + the database. `cd server && python -m pytest tests` runs the security tests.
 
 ## Security model
 | Threat | Control |
@@ -55,16 +60,41 @@ source ~/yahbs-sdk/env-ps4.sh
 The scripts install only open-source SDKs. They contain no exploits and do not enable homebrew on a
 console; you need a console already running a homebrew-capable environment.
 
-## Client status
-- `client/common`: tested on PC (`cd client/host && make && ./yahbs_host http://127.0.0.1:5000 ps4 1`),
-  including a tampered-package test.
-- `client/ps4`: **alpha, untested on hardware, not compiled here**: the OpenOrbis headers/flags were written
-  from memory of the upstream samples, so expect small fixes on first build. Currently logs the catalog and
-  downloads the first app to the debug log; no on-screen UI yet.
-- PS3 / PS5: only `plat_http_get()` has to be implemented (`platform_ps3.c`, `platform_ps5.c`), the core is shared.
+## Using a prebuilt PS4 package
+The store address is not baked in: the app reads it from `/data/yahbs/config.txt` on the console (one line,
+e.g. `https://store.example.com`). The package trusts the Let's Encrypt root certificates and one signing key
+(`client/common/pubkey.h`); the matching secret goes in the server's `SIGNING_KEY_HEX`.
+
+## Build the PS4 app (the lazy way)
+```bash
+./make-key.sh                                            # once (skip if you already ran it)
+toolchain/build_client.sh ps4 https://store.example.com  # -> dist/*.pkg   (downloads the SDK the first time)
+```
+The app trusts Let's Encrypt certificates out of the box. For another CA:
+`toolchain/make_ca_header.sh your-ca.pem > client/common/ca_pem.h` before building.
+(PS5 works the same way with `ps5` and produces `dist/yahbs-ps5.elf`.)
+Needs a Linux box or WSL2 with internet and about 1 GB free. The script warns if you are still using the
+test key / test certificate that ship in the repo (builds made with them will not talk to your server).
+Release builds accept HTTPS only; `-DYAHBS_ALLOW_HTTP` is for local testing.
+
+## Client status (what is actually verified)
+All consoles share one core: signed catalog, TLS, hash-verified download, and a software-rendered UI
+(list, detail page with SHA-256, progress bar). Console backends only provide framebuffer, pad,
+entropy, clock and a download folder (`plat_*` functions).
+
+| Piece | Status |
+|---|---|
+| Catalog signature (Ed25519), replay/platform/tamper checks | **Tested**: 13 C tests pass on x86-64 and on big-endian PowerPC (qemu-ppc64, the PS3's architecture) |
+| TLS + signed catalog + hash-checked download | **Tested** on PC against the live Flask server (good file OK, tampered file rejected, partial file deleted) |
+| Shared UI | **Tested** on PC: renders real frames from the live server, including a mid-download progress bar (`client/host/ui_host`) |
+| PS4 client | **Builds with the real OpenOrbis toolchain** (v0.5.4, LLVM 18) into a valid `.pkg`. **Never run on a console.** |
+| PS5 client | **Builds with the real ps5-payload-sdk.** Headless (reads `/data/yahbs/queue.txt`). Logic tested on PC; **never run on a console.** |
+| PS3 client | Written but **not built**: the GCC sources for the PS3 toolchain could not be downloaded here. Unverified. TLS stays off until `YAHBS_PS3_RANDOM_SYSCALL` is set (hardware RNG syscall number), on purpose |
+| PS5 on-screen UI | **Not implemented**: display/pad functions return "unavailable" (could not verify the API for a payload) |
+| Install step | Stages the verified file and tells the user how to install it; nothing auto-executes |
 
 ## Roadmap
-1. Fix-ups from first real PS4 build; TLS certificate validation (blocker for beta).
-2. Shared UI layer (grid of icons, detail page, progress bar) drawn once in `common/`, backends per SDK.
-3. Install step (PS4: place pkg for the on-console installer; PS5: run ELF payload; PS3: .pkg install).
-4. Signed catalog, email verification, 2FA, malware scanning.
+1. First run on real hardware (PS4, PS5) and a first real PS3 build.
+2. PS5 display/pad (or a local web UI) once the target environment is chosen.
+3. Fully automatic install where the platform allows it.
+4. Server: DB migrations are in `server/migrations`; add Redis rate limiting and PostgreSQL for production.

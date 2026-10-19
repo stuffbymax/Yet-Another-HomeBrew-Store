@@ -1,0 +1,3 @@
+/* Copy to pubkey.h and replace with the output of:  flask --app app gen-signing-key
+ * (the line starting with  #define YAHBS_PUBKEY). The matching secret seed stays on the server only. */
+#define YAHBS_PUBKEY { 0 /* REPLACE: 32 bytes */ }

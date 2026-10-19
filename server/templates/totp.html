@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field %}
+{% block title %}Two-factor · YAHBS{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>Two-factor authentication</h1>
+  {% if enabled %}
+    <p>Two-factor authentication is <strong>on</strong>.</p>
+    {% if not current_user.is_admin %}
+    <form method="post" action="{{ url_for('totp_disable') }}">
+      {{ form.hidden_tag() }}{{ field(form.password, autocomplete="current-password") }}
+      <button class="btn ghost" type="submit">Turn off</button>
+    </form>
+    {% else %}<p class="muted">Required for admins.</p>{% endif %}
+  {% else %}
+    <p>1. In an authenticator app (Aegis, Google Authenticator, 1Password…) choose “enter a key manually”.</p>
+    <p>2. Account: <code>{{ current_user.username }}</code> · Key: <code>{{ secret }}</code></p>
+    <p class="muted">Or add this URI: <code>{{ uri }}</code></p>
+    <p>3. Enter the 6-digit code it shows:</p>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}{{ field(form.code, autocomplete="one-time-code", inputmode="numeric", maxlength=6) }}
+      <button class="btn" type="submit">Turn on</button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

@@ -3,6 +3,10 @@
 {% block title %}My apps · YAHBS{% endblock %}
 {% block content %}
 <div class="row"><h1>My apps</h1><a class="btn" href="{{ url_for('new_app') }}">Upload an app</a></div>
+{% if not current_user.email_verified %}
+<p class="flash error">Your email isn’t verified yet, so uploads are locked.
+  <form method="post" action="{{ url_for('resend_verification') }}" class="inline">{{ form.hidden_tag() }}<button class="link" type="submit">Resend the link</button></form></p>
+{% endif %}
 {% if apps %}
 <table>
   <thead><tr><th>App</th><th>Platform</th><th>Version</th><th>Status</th><th>Downloads</th><th></th></tr></thead>

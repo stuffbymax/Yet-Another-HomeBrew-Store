@@ -23,4 +23,11 @@
   </dl>
   <p class="muted">Compare the SHA-256 with your download before installing. Homebrew runs with high privileges on your console, so only install apps from creators you trust.</p>
 </section>
+{% if current_user.is_authenticated and item.is_public() %}
+<details class="report"><summary>Report this app</summary>
+  <form method="post" action="{{ url_for('report_app', app_id=item.id) }}">
+    {{ report_form.hidden_tag() }}{{ report_form.reason.label }}{{ report_form.reason(rows=3, maxlength=500) }}
+    <button class="btn small ghost" type="submit">Send report</button>
+  </form>
+</details>{% endif %}
 {% endblock %}

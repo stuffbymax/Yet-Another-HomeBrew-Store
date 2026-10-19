@@ -1,0 +1,4 @@
+/* Generate with:  toolchain/make_ca_header.sh /path/to/ca-or-server-cert.pem > client/common/ca_pem.h
+ * Pin ONLY the CA (e.g. ISRG Root X1 for Let's Encrypt) or the server certificate you use - not a
+ * whole browser bundle. Fewer trusted roots = fewer ways to be impersonated. */
+static const char yahbs_ca_pem[] = "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n";

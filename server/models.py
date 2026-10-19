@@ -21,6 +21,10 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(16), nullable=False, default="creator")  # creator | admin
     active = db.Column(db.Boolean, nullable=False, default=True)
+    email_verified = db.Column(db.Boolean, nullable=False, default=False)
+    totp_secret = db.Column(db.String(200), nullable=True)      # Fernet-encrypted
+    totp_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    totp_last_step = db.Column(db.Integer, nullable=False, default=0)
     failed_logins = db.Column(db.Integer, nullable=False, default=0)
     locked_until = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
@@ -74,3 +78,22 @@ class HomebrewApp(db.Model):
 
     def is_public(self):
         return self.status == "approved"
+
+
+class Report(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    app_id = db.Column(db.Integer, db.ForeignKey("homebrew_app.id", ondelete="CASCADE"), nullable=False, index=True)
+    reporter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    resolved = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    app = db.relationship("HomebrewApp")
+    reporter = db.relationship("User")
+
+
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    actor = db.Column(db.String(32), nullable=False)
+    action = db.Column(db.String(48), nullable=False)
+    target = db.Column(db.String(120), nullable=False, default="")

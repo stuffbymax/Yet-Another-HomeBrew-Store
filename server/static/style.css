@@ -65,3 +65,4 @@ th,td{text-align:left;padding:.6rem .5rem;border-bottom:1px solid var(--line)}th
 .status.approved{background:#1d4b3d}.status.rejected{background:#5a2a31}
 .review{display:flex;justify-content:space-between;gap:1rem;padding:1rem;margin-bottom:1rem;background:var(--surface);border:1px solid var(--line);border-radius:12px;flex-wrap:wrap}
 @media (prefers-reduced-motion:no-preference){.tile{transition:border-color .15s}}
+details.report{margin-top:2rem}

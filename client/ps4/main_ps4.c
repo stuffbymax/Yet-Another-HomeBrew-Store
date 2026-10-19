@@ -1,29 +1,30 @@
-/* YAHBS PS4 client, alpha 0.1: network + catalog + verified download.
- * Output goes to the kernel debug log (visible via UART / klog). The on-screen UI is the next milestone
- * (see README roadmap). */
-#include "../common/yahbs.h"
-#include <orbis/libkernel.h>
+/* YAHBS for PS4 (OpenOrbis).
+ * Store URL: read from /data/yahbs/config.txt (one line, must start with https://), else the build-time default. */
+#include "../common/ui.h"
 #include <stdio.h>
+#include <string.h>
+#ifndef YAHBS_STORE_URL
+#define YAHBS_STORE_URL "https://store.example.com"
+#endif
+extern int plat_net_init(void);
 
-#define STORE_URL "https://store.example.com"   /* <- set to your server */
-#define DOWNLOAD_DIR "/data/yahbs"
-
-extern int plat_init(void);
-static yahbs_app apps[YAHBS_MAX_APPS];
-
-#define LOG(...) do { char _b[256]; snprintf(_b, sizeof _b, __VA_ARGS__); sceKernelDebugOutText(0, _b); } while (0)
+static char g_url[200];
+static void load_url(void) {
+  snprintf(g_url, sizeof g_url, "%s", YAHBS_STORE_URL);
+  FILE *f = fopen("/data/yahbs/config.txt", "r");
+  if (!f) return;
+  char b[200];
+  if (fgets(b, sizeof b, f)) {
+    size_t n = strlen(b);
+    while (n && (b[n - 1] == '\n' || b[n - 1] == '\r' || b[n - 1] == ' ' || b[n - 1] == '/')) b[--n] = 0;
+    if (n > 8 && strncmp(b, "https://", 8) == 0) snprintf(g_url, sizeof g_url, "%s", b);
+  }
+  fclose(f);
+}
 
 int main(void) {
-  LOG("YAHBS alpha starting\n");
-  if (plat_init() != 0) { LOG("network init failed\n"); return 1; }
-  int n = yahbs_fetch_catalog(STORE_URL, "ps4", apps, YAHBS_MAX_APPS);
-  if (n < 0) { LOG("catalog error %d\n", n); return 1; }
-  for (int i = 0; i < n; i++)
-    LOG("[%d] %s v%s (%llu bytes)\n", apps[i].id, apps[i].name, apps[i].version, apps[i].size);
-  /* Smoke test: fetch the first app to verify the whole pipeline. */
-  if (n > 0) {
-    char path[128]; snprintf(path, sizeof path, DOWNLOAD_DIR "/%d.bin", apps[0].id);
-    LOG("download -> %d\n", yahbs_download(STORE_URL, &apps[0], path));
-  }
+  plat_net_init();
+  load_url();
+  ui_run(g_url, "ps4");
   return 0;
 }
