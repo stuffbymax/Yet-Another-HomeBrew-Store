@@ -1,5 +1,7 @@
 # Yet Another HomeBrew Store (YAHBS)
 
+- it's ai gen BTW
+
 One store, one database, three consoles. Creators upload homebrew on the website; console clients
 (PS3 / PS4 / PS5, same UI, different SDK) read the same read-only API and download packages.
 
